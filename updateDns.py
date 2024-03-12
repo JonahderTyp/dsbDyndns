@@ -62,9 +62,10 @@ if __name__ == "__main__":
         else:
                 lastIP = None
                 print(os.path.abspath(__file__))
+                print(f"IP-file {IPFILE}")
                 print("Keine letzte IP gefunfen!")
 
         if not curIP == lastIP:
                 updateIPs(curIP)
-                with open("./currentIP.txt", "w") as f:
+                with open(IPFILE, "w") as f:
                         f.write(curIP)
