@@ -1,7 +1,7 @@
 version: '3.1'
 
 services:
-  my_python_script:
+  dyndns:
     build: .
     volumes:
       - ./src:/usr/src/app
