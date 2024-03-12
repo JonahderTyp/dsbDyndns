@@ -1,0 +1,9 @@
+version: '3.1'
+
+services:
+  my_python_script:
+    build: .
+    volumes:
+      - ./src:/usr/src/app
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
