@@ -2,7 +2,7 @@ import requests
 import os
 from dotenv import load_dotenv
 
-IPFILE = './currentIP.txt'
+IPFILE = os.path.join(os.getcwd(), 'currentIP.txt')
 load_dotenv()
 
 def getLoginCookies():
@@ -61,6 +61,7 @@ if __name__ == "__main__":
                         lastIP = f.read()
         else:
                 lastIP = None
+                print(os.path.abspath(__file__))
                 print("Keine letzte IP gefunfen!")
 
         if not curIP == lastIP:
