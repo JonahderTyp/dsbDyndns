@@ -1,77 +1,68 @@
-import requests
+import logging
 import os
+from datetime import date
+from pathlib import Path
+
+import requests
 from dotenv import load_dotenv
 
-IPFILE = os.path.join(os.getcwd(), 'currentIP.txt')
-load_dotenv()
+from dns_client import DnsUpdateError, get_public_ip, update_dns
 
 
-def getLoginCookies():
-    payload = {'FORM_SUBMIT': 'tl_login',
-               'username': os.getenv('username'), 'password': os.getenv('password')}
-
-    r = requests.post(
-        'https://mein.domainssaubillig.de/interface.html', data=payload)
-    return r.cookies
+logger = logging.getLogger(__name__)
 
 
-def updateDomain(auth, ipv4='', ipv6=''):
-
-    payload = {
-        'uid': os.getenv('uid'),
-        'did': '140014',
-        'formf': '919',
-        'ipv4': ipv4,
-        'ipv6': ipv6
-    }
-
-    r = requests.post(
-        'https://mein.domainssaubillig.de/editdns.php', data=payload, cookies=auth)
-
-    return r
+def configure_logging(log_dir: Path) -> None:
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"dyndns-{date.today().isoformat()}.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(log_file, encoding="utf-8"),
+        ],
+    )
 
 
-def updateSubdomain(auth, ipv4='', ipv6=''):
-    payload = {
-        'uid': os.getenv('uid'),
-        'sdid': '198516',
-        'formf': '919',
-        'ipv4': ipv4,
-        'ipv6': ipv6
-    }
+def run_update(work_dir: Path) -> None:
+    load_dotenv()
+    current_ip = get_public_ip()
+    if "TEST" in os.environ:
+        logger.info("TEST IP: %s", current_ip)
+        return
 
-    r = requests.post(
-        'https://mein.domainssaubillig.de/sub_editdns.php', data=payload, cookies=auth)
+    ip_file = work_dir / "currentIP.txt"
+    try:
+        previous_ip = ip_file.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        previous_ip = None
+        logger.info("No cached IP found; proceeding with DNS update")
 
-    return r
+    if current_ip == previous_ip:
+        logger.info("Public IPv4 unchanged; skipping DNS update")
+        return
+
+    credentials = {name: os.getenv(name, "") for name in ("username", "password", "uid")}
+    missing = [name for name, value in credentials.items() if not value]
+    if missing:
+        raise DnsUpdateError(f"Missing environment variables: {', '.join(missing)}")
+
+    update_dns(current_ip, **credentials)
+    ip_file.write_text(current_ip, encoding="utf-8")
+    logger.info("Updated domain and subdomain to %s", current_ip)
 
 
-def updateIPs(ip):
-    auth = getLoginCookies()
-    requestsresults = [updateDomain(auth=auth, ipv4=ip),
-                       updateSubdomain(auth=auth, ipv4=ip)]
-    for r in requestsresults:
-        if not 'erfolgreich' in str(r.content):
-            print("error")
+def main() -> int:
+    try:
+        work_dir = Path.cwd()
+        configure_logging(work_dir / "logs")
+        run_update(work_dir)
+    except (DnsUpdateError, OSError, UnicodeError, requests.RequestException) as error:
+        logger.error("DNS update failed: %s", error)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    curIP = requests.get('https://api.ipify.org').content.decode('utf8')
-    if "TEST" in os.environ:
-        print(f"TEST IP: {curIP}")
-        exit()
-    print(f"running DNS update {os.getcwd()} {curIP}")
-
-    if os.path.isfile(IPFILE):
-        with open(IPFILE, "r") as f:
-            lastIP = f.read()
-    else:
-        lastIP = None
-        print(os.path.abspath(__file__))
-        print(f"IP-file {IPFILE}")
-        print("Keine letzte IP gefunfen!")
-
-    if not curIP == lastIP:
-        updateIPs(curIP)
-        with open(IPFILE, "w") as f:
-            f.write(curIP)
+    raise SystemExit(main())

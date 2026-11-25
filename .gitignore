@@ -1,2 +1,5 @@
 .env
 log.txt
+logs/
+currentIP.txt
+__pycache__/

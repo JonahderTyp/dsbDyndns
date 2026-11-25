@@ -1,9 +1,0 @@
-version: '3.1'
-
-services:
-  dyndns:
-    build: .
-    volumes:
-      - ./src:/usr/src/app
-      - /etc/localtime:/etc/localtime:ro
-    restart: unless-stopped
